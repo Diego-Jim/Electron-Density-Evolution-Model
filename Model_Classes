@@ -13,6 +13,7 @@ import glob
 #import tensorflow as tf
 import pandas as pd
 import time
+from statistics import mean #For averages of D and V
 import matplotlib.animation as animation
 
 
@@ -160,22 +161,44 @@ class Density_Model:
         grad[0] = grad[1]
         grad[-1] = grad[-2]
         return grad
-        
-        
-    def get_gamma_2block(self, grad_n_e, n_e, spots, Ds, Vs):  #this is the place to mess with the Ds and Vs ##### Right now Ds and Vs are two each
+
+################# Diego's Code (Will remove) 
+    
+    def continuous_D_eq(self, a1, b1, c, d):        
+        rho = np.array(self.original_rho_data) #(Add comment)
+        p = np.square(rho - 1.105)
+        self.D_values = a1 * (1 - np.exp(p / c) - b1 * (rho - 1.105) * (np.exp(-10 * np.square(rho - 1.105)))) + d
+    
+        for i, element in enumerate(self.D_values):
+            if element <= 0:
+                self.D_values[i] = 0.0001
+        return self.D_values
+    
+    def continuous_V_eq(self, a2, b2):
+        rho = np.array(self.original_rho_data)
+        self.V_values = a2 * np.exp(b2 * rho - 1) 
+        return self.V_values
+    
+    def average_D_values(self):
+        self.D_mean = mean(self.D_values)
+        print('Average D values', self.D_mean)
+    
+    def average_V_values(self):       
+        self.V_mean = mean(self.V_values)
+        print('Average V values', self.V_mean)     
+    
+#################    
+    
+    def get_gamma_2block(self, grad_n_e, n_e, spots, D_set, V_set):  #this is the place to mess with the Ds and Vs ##### Right now Ds and Vs are two each
         grad_n_e = np.array(grad_n_e,dtype=float)
         n_e = np.array(n_e,dtype=float)
 
         gamma = np.array(n_e,dtype = float)
-
+        
         for i in range(0,len(n_e)):
-            if spots[i] >= 0.9:    ############## Here controls where the second block begins and it changes D and V values
-                D = Ds[1]
-                V = Vs[1]
-            else:
-                D = Ds[0]
-                V = Vs[0]
-            gamma[i] = -1*D*grad_n_e[i] + V*n_e[i]
+            gamma[i] = -1 * D_set[i] * grad_n_e[i] + V_set[i] * n_e[i]
+        
+        #print(gamma[i]) # warning, a lot of values are printed from this 
         return np.array(gamma,dtype=float)
     
     def source_func(self, spaces, height, width): #add a new source as an exponential, not a gaussian
@@ -191,6 +214,8 @@ class Density_Model:
         dn_dt = -1*grad_gamma + source
         return np.array(dn_dt,dtype=float)
     
+    
+    
     def model_density(self): # this is going to be like model3 but it will use interpolation and find the gradient that way
         ##### need to make extra time points to avoid numerical instability #####
         extra_time_factor = 15
@@ -205,13 +230,18 @@ class Density_Model:
         #print(t)
         source_height = self.coefficients[0]
         source_width = self.coefficients[1]
-        D1 = self.coefficients[2]
-        D2 = self.coefficients[3]
-        V1 = self.coefficients[4]
-        V2 = self.coefficients[5]
+        a1 = self.coefficients[2]
+        b1 = self.coefficients[3]
+        c = self.coefficients[4]
+        d = self.coefficients[5]
+        a2 = self.coefficients[6]
+        b2 = self.coefficients[7]
 
-        D_set = [D1,D2]
-        V_set = [V1,V2]
+        D_set = self.continuous_D_eq(a1, b1, c, d)
+        V_set = self.continuous_V_eq(a2, b2)
+        
+        #print(D_set, V_set) - This is to check the D and V values
+        
         source_coefficients = [source_height, source_width]
         
         ##################### This begins the actual function ###############
